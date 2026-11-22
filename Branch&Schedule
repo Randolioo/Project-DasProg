@@ -1,0 +1,82 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    private static void ChooseBranchAndShowCourts()
+        {
+            int branch = SelectBranch();
+            Console.WriteLine("\nCabang " + BranchNames[branch] + " memiliki " + CourtCounts[branch] + " court.");
+            for (int i = 1; i <= CourtCounts[branch]; i++)
+                Console.WriteLine("- Court " + i);
+        }
+
+    private static int SelectBranch()
+        {
+            Console.WriteLine("Pilih cabang:");
+            for (int i = 0; i < BranchNames.Length; i++)
+                Console.WriteLine((i + 1) + ". " + BranchNames[i] + " (" + CourtCounts[i] + " court)");
+    
+            return ReadInt("Nomor cabang: ", 1, BranchNames.Length) - 1;
+        }
+
+    private static void ShowScheduleFlow()
+        {
+            int branch = SelectBranch();
+            DateTime date = ReadDate("Tanggal jadwal (yyyy-MM-dd): ");
+            DisplaySchedule(branch, date);
+        }
+
+    private static void DisplaySchedule(int branch, DateTime date)
+        {
+            int numberOfSlots = CloseHour - OpenHour;
+            string[,] schedule = new string[CourtCounts[branch], numberOfSlots];
+    
+            for (int court = 0; court < CourtCounts[branch]; court++)
+            {
+                for (int slot = 0; slot < numberOfSlots; slot++)
+                    schedule[court, slot] = "0";
+            }
+    
+            foreach (Booking booking in data.Bookings)
+            {
+                if (booking.Status != "Booked" ||
+                    booking.Branch != BranchNames[branch] ||
+                    booking.Date != date.ToString("yyyy-MM-dd"))
+                    continue;
+    
+                int startHour = booking.StartHour;
+                int duration = booking.DurationHours;
+                for (int h = startHour; h < startHour + duration; h++)
+                {
+                    int slot = h - OpenHour;
+                    if (booking.CourtNumber >= 1 &&
+                        booking.CourtNumber <= CourtCounts[branch] &&
+                        slot >= 0 && slot < numberOfSlots)
+                    {
+                        schedule[booking.CourtNumber - 1, slot] = "X";
+                    }
+                }
+            }
+    
+            Console.WriteLine("\nJadwal cabang " + BranchNames[branch] + " | Tanggal " + date.ToString("yyyy-MM-dd"));
+            Console.Write("Court  ");
+            for (int h = OpenHour; h < CloseHour; h++)
+                Console.Write($"{h:00}:00 ");
+            Console.WriteLine();
+    
+            for (int court = 0; court < CourtCounts[branch]; court++)
+            {
+                Console.Write($"Court {court + 1} ");
+                for (int slot = 0; slot < numberOfSlots; slot++)
+                    Console.Write($"  {schedule[court, slot]}    ");
+                Console.WriteLine();
+            }
+    
+            Console.WriteLine("Keterangan: 0 = tersedia, X = sudah dibooking.");
+            Console.WriteLine("Setiap kolom mewakili slot 1 jam; jam terakhir mulai pukul 21.00.");
+        }
+
+}
