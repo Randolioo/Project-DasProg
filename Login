@@ -1,0 +1,89 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    // =========================
+        // KONFIGURASI PROGRAM
+        // =========================
+        private const string AdminUsername = "admin";
+        private const string AdminPassword = "admin123";
+        private const int OpenHour = 8;
+        private const int CloseHour = 22; // Jam tutup, booking terakhir mulai pukul 21.00
+        private const decimal WeekdayCourtPrice = 100000m;
+        private const decimal WeekendCourtPrice = 150000m;
+        private const decimal RacketRentalPrice = 20000m; // per raket per booking
+        private const decimal BallPrice = 15000m;         // per bola
+        private const decimal MemberDiscount = 0.10m;
+        private const string BookingFile = "booking_history.txt";
+        private const string InventoryFile = "inventory_history.txt";
+        private const string LegacyDataFile = "padel_data.txt";
+    
+        private static readonly string[] BranchNames =
+        {
+            "Cikarang", "Bekasi", "Karawang", "Jakarta"
+        };
+    
+        private static readonly int[] CourtCounts = { 3, 4, 2, 5 };
+        private static readonly int[] InitialRacketStocks = { 16, 20, 12, 24 };
+        private static readonly int[] InitialBallStocks = { 50, 60, 40, 80 };
+    
+        private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+    
+        private static AppData data = new AppData();
+
+    static void Main()
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            LoadData();
+    
+            Console.WriteLine("==============================================");
+            Console.WriteLine("       PADEL COURT BOOKING SYSTEM");
+            Console.WriteLine("==============================================");
+            Console.WriteLine("Data booking: " + BookingFile);
+            Console.WriteLine("Riwayat inventori: " + InventoryFile);
+            Console.WriteLine();
+    
+            bool running = true;
+            while (running)
+            {
+                Console.WriteLine("LOGIN");
+                Console.Write("Username: ");
+                string username = ReadNonEmpty("Username tidak boleh kosong.");
+                Console.Write("Password: ");
+                string password = ReadNonEmpty("Password tidak boleh kosong.");
+    
+                bool isAdmin = username == AdminUsername && password == AdminPassword;
+    
+                if (isAdmin)
+                {
+                    Console.WriteLine("\nLogin sebagai ADMIN berhasil.\n");
+                    running = AdminMenu();
+                }
+                else
+                {
+                    // kalau mau admin. USN: admin, PW: admin123. selain itu customer
+                    Console.WriteLine("\nLogin sebagai CUSTOMER.");
+                    Console.WriteLine("Nama akun customer: " + username + "\n");
+                    running = CustomerMenu(username);
+                }
+            }
+    
+            SaveData();
+            Console.WriteLine("\nProgram ditutup. Data booking sudah disimpan.");
+        }
+    private static int GetBranchIndex(string branchName)
+{
+    for (int i = 0; i < BranchNames.Length; i++)
+    {
+        if (BranchNames[i].Equals(branchName, StringComparison.OrdinalIgnoreCase))
+            return i;
+    }
+    return -1;
+}
+}
