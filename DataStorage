@@ -1,0 +1,189 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    private static void EnsureStockArrays()
+    {
+        if (data.RacketStocks == null || data.RacketStocks.Length != BranchNames.Length)
+        {
+            data.RacketStocks = new int[BranchNames.Length];
+            for (int i = 0; i < BranchNames.Length; i++)
+                data.RacketStocks[i] = InitialRacketStocks[i];
+        }
+
+        if (data.BallStocks == null || data.BallStocks.Length != BranchNames.Length)
+        {
+            data.BallStocks = new int[BranchNames.Length];
+            for (int i = 0; i < BranchNames.Length; i++)
+                data.BallStocks[i] = InitialBallStocks[i];
+        }
+    }
+
+    private static void LoadData()
+    {
+        bool hasInventoryHistory = File.Exists(InventoryFile);
+        bool migratedLegacyData = false;
+
+        try
+        {
+            // Booking dan member disimpan terpisah dari riwayat inventori.
+            if (File.Exists(BookingFile))
+            {
+                string json = File.ReadAllText(BookingFile);
+                AppData? loaded = JsonSerializer.Deserialize<AppData>(json, JsonOptions);
+                if (loaded != null)
+                    data = loaded;
+            }
+            else if (File.Exists(LegacyDataFile))
+            {
+                // Migrasi otomatis dari versi lama yang masih memakai padel_data.txt.
+                string oldJson = File.ReadAllText(LegacyDataFile);
+                AppData? oldData = JsonSerializer.Deserialize<AppData>(oldJson, JsonOptions);
+                if (oldData != null)
+                {
+                    data = oldData;
+                    migratedLegacyData = true;
+                }
+            }
+
+            data.Bookings ??= Array.Empty<Booking>();
+            data.Members ??= Array.Empty<string>();
+            EnsureStockArrays();
+
+            if (migratedLegacyData && !hasInventoryHistory)
+            {
+                for (int i = 0; i < BranchNames.Length; i++)
+                {
+                    WriteInventorySnapshot(BranchNames[i], "RACKET", data.RacketStocks[i], "Migrasi dari padel_data.txt");
+                    WriteInventorySnapshot(BranchNames[i], "BALL", data.BallStocks[i], "Migrasi dari padel_data.txt");
+                }
+                SaveData();
+            }
+            else
+            {
+                LoadInventoryHistory();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Peringatan: data tidak dapat dibaca.");
+            Console.WriteLine("Detail: " + ex.Message);
+            data = new AppData();
+            EnsureStockArrays();
+
+            if (!File.Exists(InventoryFile))
+            {
+                for (int i = 0; i < BranchNames.Length; i++)
+                {
+                    WriteInventorySnapshot(BranchNames[i], "RACKET", InitialRacketStocks[i], "Stok awal");
+                    WriteInventorySnapshot(BranchNames[i], "BALL", InitialBallStocks[i], "Stok awal");
+                }
+            }
+            LoadInventoryHistory();
+            SaveData();
+        }
+    }
+
+    private static void SaveData()
+    {
+        try
+        {
+            int[] defaultRackets = new int[BranchNames.Length];
+            int[] defaultBalls = new int[BranchNames.Length];
+            for (int i = 0; i < BranchNames.Length; i++)
+            {
+                defaultRackets[i] = InitialRacketStocks[i];
+                defaultBalls[i] = InitialBallStocks[i];
+            }
+
+            // File booking berisi data booking dan daftar member saja.
+            AppData bookingData = new AppData
+            {
+                Bookings = data.Bookings ?? Array.Empty<Booking>(),
+                Members = data.Members ?? Array.Empty<string>(),
+                RacketStocks = defaultRackets,
+                BallStocks = defaultBalls
+            };
+
+            string json = JsonSerializer.Serialize(bookingData, JsonOptions);
+            File.WriteAllText(BookingFile, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Gagal menyimpan histori booking: " + ex.Message);
+        }
+    }
+
+    private static void RecordInventoryChange(string branch, string item, int change, string reason)
+    {
+        int branchIndex = GetBranchIndex(branch);
+        string itemName = item.ToUpperInvariant();
+        int currentStock = 0;
+
+        if (branchIndex >= 0)
+            currentStock = itemName == "RACKET" ? data.RacketStocks[branchIndex] : data.BallStocks[branchIndex];
+
+        string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "|" +
+                      branch + "|" + itemName + "|" + change + "|" + currentStock + "|" +
+                      reason.Replace("|", "/");
+        try
+        {
+            File.AppendAllText(InventoryFile, line + Environment.NewLine);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Gagal mencatat perubahan inventori: " + ex.Message);
+        }
+    }
+
+    private static void WriteInventorySnapshot(string branch, string item, int stock, string reason)
+    {
+        string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "|" +
+                      branch + "|" + item + "|0|" + stock + "|" + reason.Replace("|", "/");
+        File.AppendAllText(InventoryFile, line + Environment.NewLine);
+    }
+
+    private static void LoadInventoryHistory()
+    {
+        data.RacketStocks = new int[BranchNames.Length];
+        data.BallStocks = new int[BranchNames.Length];
+        for (int i = 0; i < BranchNames.Length; i++)
+        {
+            data.RacketStocks[i] = InitialRacketStocks[i];
+            data.BallStocks[i] = InitialBallStocks[i];
+        }
+
+        if (!File.Exists(InventoryFile))
+        {
+            for (int i = 0; i < BranchNames.Length; i++)
+            {
+                WriteInventorySnapshot(BranchNames[i], "RACKET", InitialRacketStocks[i], "Stok awal");
+                WriteInventorySnapshot(BranchNames[i], "BALL", InitialBallStocks[i], "Stok awal");
+            }
+            return;
+        }
+
+        string[] lines = File.ReadAllLines(InventoryFile);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (string.IsNullOrWhiteSpace(lines[i]))
+                continue;
+
+            string[] parts = lines[i].Split('|');
+            if (parts.Length < 6 || !int.TryParse(parts[4], out int stockAfter))
+                continue;
+
+            int branchIndex = GetBranchIndex(parts[1]);
+            if (branchIndex < 0)
+                continue;
+
+            if (parts[2] == "RACKET")
+                data.RacketStocks[branchIndex] = stockAfter;
+            else if (parts[2] == "BALL")
+                data.BallStocks[branchIndex] = stockAfter;
+        }
+    }
+}
