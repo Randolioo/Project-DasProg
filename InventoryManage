@@ -1,0 +1,50 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    private static void ManageStock()
+    {
+        int branch = SelectBranch();
+        string branchName = BranchNames[branch];
+        Console.WriteLine("\nSTOK PERLENGKAPAN CABANG " + branchName.ToUpperInvariant());
+        Console.WriteLine("Raket (total unit): " + data.RacketStocks[branch]);
+        Console.WriteLine("Bola tersisa      : " + data.BallStocks[branch]);
+        Console.WriteLine("1. Ubah total stok raket");
+        Console.WriteLine("2. Tambah stok bola");
+        Console.WriteLine("3. Kembali");
+        int choice = ReadInt("Pilih menu: ", 1, 3);
+
+        if (choice == 1)
+        {
+            int activeRacketReservations = 0;
+            for (int i = 0; i < data.Bookings.Length; i++)
+            {
+                if (data.Bookings[i].Status == "Booked" &&
+                    data.Bookings[i].Branch == branchName &&
+                    data.Bookings[i].RacketCount > activeRacketReservations)
+                {
+                    activeRacketReservations = data.Bookings[i].RacketCount;
+                }
+            }
+
+            int newStock = ReadInt("Masukkan total stok raket baru: ", activeRacketReservations, 10000);
+            int racketChange = newStock - data.RacketStocks[branch];
+            data.RacketStocks[branch] = newStock;
+            if (racketChange != 0)
+                RecordInventoryChange(branchName, "RACKET", racketChange, "Admin mengubah total stok raket cabang " + branchName);
+            SaveData();
+            Console.WriteLine("Stok raket cabang " + branchName + " berhasil diperbarui.");
+        }
+        else if (choice == 2)
+        {
+            int amount = ReadInt("Jumlah bola yang ditambahkan: ", 1, 100000);
+            data.BallStocks[branch] += amount;
+            RecordInventoryChange(branchName, "BALL", amount, "Admin menambahkan stok bola cabang " + branchName);
+            SaveData();
+            Console.WriteLine("Stok bola cabang " + branchName + " berhasil ditambahkan. Stok sekarang: " + data.BallStocks[branch]);
+        }
+    }
+}
