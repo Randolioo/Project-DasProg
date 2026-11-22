@@ -1,0 +1,401 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    private static void CreateBooking(string username)
+    {
+        Console.WriteLine("============= BOOKING LAPANGAN =============");
+        int branch = SelectBranch();
+        DateTime date = ReadDate("Tanggal booking (YYYY-MM-DD): ");
+
+        if (date.Date < DateTime.Today)
+        {
+            Console.WriteLine("Tanggal booking tidak boleh berada di masa lalu.");
+            return;
+        }
+
+        DisplaySchedule(branch, date);
+
+        int court = ReadInt("Pilih nomor court: ", 1, CourtCounts[branch]);
+        int startHour = ReadInt($"Jam mulai ({OpenHour:00}:00 sampai {CloseHour - 1:00}:00): ", OpenHour, CloseHour - 1);
+        int maxDuration = CloseHour - startHour;
+        int duration = ReadInt($"Durasi booking (1 sampai {maxDuration} jam): ", 1, maxDuration);
+        int endHour = startHour + duration;
+
+        if (IsCourtBooked(BranchNames[branch], court, date, startHour, duration))
+        {
+            Console.WriteLine("Sebagian atau seluruh jam yang dipilih sudah dibooking. Silakan pilih jadwal lain.");
+            return;
+        }
+
+        Console.Write("Nama customer (A.N.): ");
+        string customerName = ReadNonEmpty("Nama customer tidak boleh kosong.");
+
+        Console.WriteLine("\nPERLENGKAPAN (OPSIONAL)");
+        Console.WriteLine("1. Sewa raket (Rp" + RacketRentalPrice.ToString("N0") + " per raket per booking)");
+        Console.WriteLine("2. Beli bola (Rp" + BallPrice.ToString("N0") + " per bola)");
+        Console.WriteLine("3. Skip semua perlengkapan");
+        int equipmentChoice = ReadInt("Pilih 1, 2, atau 3: ", 1, 3);
+
+        int rackets = 0;
+        int balls = 0;
+
+        if (equipmentChoice == 1)
+        {
+            int availableRackets = GetAvailableRackets(BranchNames[branch], date, startHour, duration);
+            Console.WriteLine("Raket tersedia untuk slot ini: " + availableRackets);
+            if (availableRackets > 0)
+                rackets = ReadInt("Jumlah raket yang disewa (0 untuk skip): ", 0, availableRackets);
+            else
+                Console.WriteLine("Raket sedang tidak tersedia.");
+
+            balls = ReadInt("Jumlah bola yang dibeli (0 untuk skip): ", 0, data.BallStocks[branch]);
+        }
+        else if (equipmentChoice == 2)
+        {
+            balls = ReadInt("Jumlah bola yang dibeli (0 untuk skip): ", 0, data.BallStocks[branch]);
+        }
+        // Pilihan 3 sengaja tidak meminta jumlah apa pun.
+
+        decimal courtPrice = GetCourtPrice(date) * duration;
+        decimal racketCost = rackets * RacketRentalPrice;
+        decimal ballCost = balls * BallPrice;
+        decimal subtotal = courtPrice + racketCost + ballCost;
+        bool member = IsMember(username);
+        decimal discount = member ? Math.Round(subtotal * MemberDiscount, 0) : 0m;
+        decimal total = subtotal - discount;
+
+        Console.WriteLine("\n=============== RINCIAN BIAYA ===============");
+        Console.WriteLine("Cabang             : " + BranchNames[branch]);
+        Console.WriteLine("Court              : " + court);
+        Console.WriteLine("Tanggal            : " + date.ToString("yyyy-MM-dd"));
+        Console.WriteLine("Jam                : " + startHour.ToString("00") + ":00 - " + endHour.ToString("00") + ":00");
+        Console.WriteLine("Harga court        : Rp" + courtPrice.ToString("N0"));
+        Console.WriteLine("Sewa " + rackets + " raket       : Rp" + racketCost.ToString("N0"));
+        Console.WriteLine("Beli " + balls + " bola        : Rp" + ballCost.ToString("N0"));
+        Console.WriteLine("Subtotal           : Rp" + subtotal.ToString("N0"));
+        Console.WriteLine("Diskon member      : Rp" + discount.ToString("N0") + (member ? " (10%)" : " (bukan member)"));
+        Console.WriteLine("TOTAL              : Rp" + total.ToString("N0"));
+        Console.WriteLine("=============================================");
+
+        Console.WriteLine("Metode pembayaran:");
+        Console.WriteLine("1. Cash");
+        Console.WriteLine("2. Digital (simulasi, tidak ada transaksi sungguhan)");
+        int paymentChoice = ReadInt("Pilih metode pembayaran: ", 1, 2);
+
+        Console.WriteLine("\nSimulasi pembayaran berhasil.");
+        Console.Write("Konfirmasi booking? (Y/N): ");
+        string confirm = Console.ReadLine()?.Trim().ToUpperInvariant() ?? "N";
+        if (confirm != "Y")
+        {
+            Console.WriteLine("Booking dibatalkan. Stok bola tidak berubah.");
+            return;
+        }
+
+        // ini cek ulang stock perlengkapan
+        int currentAvailableRackets = GetAvailableRackets(BranchNames[branch], date, startHour, duration);
+        if (rackets > currentAvailableRackets)
+        {
+            Console.WriteLine("Stok raket tidak lagi mencukupi. Silakan ulangi booking.");
+            return;
+        }
+        if (balls > data.BallStocks[branch])
+        {
+            Console.WriteLine("Stok bola tidak mencukupi. Silakan ulangi booking.");
+            return;
+        }
+
+        Booking newBooking = new Booking
+        {
+            Code = GenerateBookingCode(),
+            Username = username,
+            CustomerName = customerName,
+            Branch = BranchNames[branch],
+            CourtNumber = court,
+            Date = date.ToString("yyyy-MM-dd"),
+            StartHour = startHour,
+            DurationHours = duration,
+            RacketCount = rackets,
+            BallCount = balls,
+            CourtPrice = courtPrice,
+            RacketCost = racketCost,
+            BallCost = ballCost,
+            Subtotal = subtotal,
+            Discount = discount,
+            Total = total,
+            PaymentMethod = paymentChoice == 1 ? "Cash" : "Digital",
+            PaymentStatus = "Paid",
+            Status = "Booked",
+            CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+        };
+
+        AddBooking(newBooking);
+        data.BallStocks[branch] -= balls;
+        if (balls > 0)
+            RecordInventoryChange(BranchNames[branch], "BALL", -balls, "Pembelian bola saat booking " + newBooking.Code);
+        SaveData();
+
+        Console.WriteLine("\nBOOKING BERHASIL!");
+        Console.WriteLine("Kode booking: " + newBooking.Code);
+        Console.WriteLine("A.N.: " + newBooking.CustomerName);
+        Console.WriteLine("Metode pembayaran: " + newBooking.PaymentMethod);
+        Console.WriteLine("Status pembayaran: " + newBooking.PaymentStatus);
+        Console.WriteLine("Sisa stok bola cabang " + BranchNames[branch] + ": " + data.BallStocks[branch]);
+        Console.WriteLine("Mohon siimpan kode booking untuk pencarian atau pembatalan.");
+    }
+
+    private static bool IsCourtBooked(string branch, int court, DateTime date, int startHour, int duration)
+    {
+        string dateText = date.ToString("yyyy-MM-dd");
+        foreach (Booking booking in data.Bookings)
+        {
+            if (booking.Status != "Booked" ||
+                booking.Branch != branch ||
+                booking.CourtNumber != court ||
+                booking.Date != dateText)
+                continue;
+
+            int existingStart = booking.StartHour;
+            int existingEnd = existingStart + booking.DurationHours;
+            int requestedEnd = startHour + duration;
+
+            if (startHour < existingEnd && requestedEnd > existingStart)
+                return true;
+        }
+        return false;
+    }
+
+    private static int GetAvailableRackets(string branch, DateTime date, int startHour, int duration)
+    {
+        int branchIndex = GetBranchIndex(branch);
+        if (branchIndex < 0)
+            return 0;
+
+        int maxRented = 0;
+        string dateText = date.ToString("yyyy-MM-dd");
+
+        for (int h = startHour; h < startHour + duration; h++)
+        {
+            int rentedAtHour = 0;
+
+            foreach (Booking booking in data.Bookings)
+            {
+                if (booking.Status != "Booked" ||
+                    booking.Branch != branch ||
+                    booking.Date != dateText)
+                    continue;
+
+                int existingStart = booking.StartHour;
+                int existingEnd = existingStart + booking.DurationHours;
+                if (h >= existingStart && h < existingEnd)
+                    rentedAtHour += booking.RacketCount;
+            }
+
+            if (rentedAtHour > maxRented)
+                maxRented = rentedAtHour;
+        }
+
+        return Math.Max(0, data.RacketStocks[branchIndex] - maxRented);
+    }
+
+    private static decimal GetCourtPrice(DateTime date)
+    {
+        return date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday
+            ? WeekendCourtPrice
+            : WeekdayCourtPrice;
+    }
+
+    private static void AddBooking(Booking booking)
+    {
+        Booking[] newBookings = new Booking[data.Bookings.Length + 1];
+        for (int i = 0; i < data.Bookings.Length; i++)
+            newBookings[i] = data.Bookings[i];
+
+        newBookings[newBookings.Length - 1] = booking;
+        data.Bookings = newBookings;
+    }
+
+    private static bool BookingCodeExists(string code)
+    {
+        for (int i = 0; i < data.Bookings.Length; i++)
+        {
+            if (data.Bookings[i].Code == code)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static string GenerateBookingCode()
+    {
+        string code;
+        do
+        {
+            code = "PDL" + DateTime.Now.ToString("yyMMddHHmmss") +
+                   new Random(Guid.NewGuid().GetHashCode()).Next(100, 999);
+        } while (BookingCodeExists(code));
+
+        return code;
+    }
+
+    private static void SearchBookingFlow()
+    {
+        Console.Write("Masukkan kode booking: ");
+        string keyword = ReadNonEmpty("Input pencarian tidak boleh kosong.");
+
+        // Menyimpan hasil pencarian ke array sementara secara manual.
+        Booking[] results = new Booking[data.Bookings.Length];
+        int resultCount = 0;
+
+        for (int i = 0; i < data.Bookings.Length; i++)
+        {
+            Booking booking = data.Bookings[i];
+            if (booking.Code.Equals(keyword, StringComparison.OrdinalIgnoreCase) ||
+                booking.CustomerName.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                results[resultCount] = booking;
+                resultCount++;
+            }
+        }
+
+        // Urutkan hasil terbaru lebih dulu dengan perbandingan manual.
+        for (int i = 0; i < resultCount - 1; i++)
+        {
+            for (int j = i + 1; j < resultCount; j++)
+            {
+                if (string.Compare(results[i].CreatedAt, results[j].CreatedAt, StringComparison.Ordinal) < 0)
+                {
+                    Booking temp = results[i];
+                    results[i] = results[j];
+                    results[j] = temp;
+                }
+            }
+        }
+
+        if (resultCount == 0)
+        {
+            Console.WriteLine("Booking tidak ditemukan.");
+            return;
+        }
+
+        for (int i = 0; i < resultCount; i++)
+            PrintBooking(results[i]);
+    }
+
+    private static void PrintBooking(Booking b)
+    {
+        Console.WriteLine("---------------------------------------------");
+        Console.WriteLine("Kode booking     : " + b.Code);
+        Console.WriteLine("Username         : " + b.Username);
+        Console.WriteLine("A.N.             : " + b.CustomerName);
+        Console.WriteLine("Cabang           : " + b.Branch);
+        Console.WriteLine("Court            : " + b.CourtNumber);
+        Console.WriteLine("Tanggal          : " + b.Date);
+        Console.WriteLine("Jam              : " + b.StartHour.ToString("00") + ":00 - " + (b.StartHour + b.DurationHours).ToString("00") + ":00");
+        Console.WriteLine("Raket disewa     : " + b.RacketCount);
+        Console.WriteLine("Bola dibeli      : " + b.BallCount);
+        Console.WriteLine("Subtotal         : Rp" + b.Subtotal.ToString("N0"));
+        Console.WriteLine("Diskon           : Rp" + b.Discount.ToString("N0"));
+        Console.WriteLine("Total             : Rp" + b.Total.ToString("N0"));
+        Console.WriteLine("Metode bayar     : " + b.PaymentMethod);
+        Console.WriteLine("Pembayaran       : " + b.PaymentStatus);
+        Console.WriteLine("Status booking   : " + b.Status);
+        Console.WriteLine("---------------------------------------------");
+    }
+
+    private static void ShowAllBookings()
+    {
+        if (data.Bookings.Length == 0)
+        {
+            Console.WriteLine("Belum ada data booking.");
+            return;
+        }
+
+        Console.WriteLine("SEMUA DATA BOOKING");
+
+        // Salin array agar urutan data utama tidak berubah.
+        Booking[] sortedBookings = new Booking[data.Bookings.Length];
+        for (int i = 0; i < data.Bookings.Length; i++)
+            sortedBookings[i] = data.Bookings[i];
+
+        // Pengurutan manual berdasarkan tanggal, lalu jam mulai.
+        for (int i = 0; i < sortedBookings.Length - 1; i++)
+        {
+            for (int j = i + 1; j < sortedBookings.Length; j++)
+            {
+                bool shouldSwap = string.Compare(sortedBookings[i].Date, sortedBookings[j].Date, StringComparison.Ordinal) > 0;
+                if (!shouldSwap && sortedBookings[i].Date == sortedBookings[j].Date)
+                    shouldSwap = sortedBookings[i].StartHour > sortedBookings[j].StartHour;
+
+                if (shouldSwap)
+                {
+                    Booking temp = sortedBookings[i];
+                    sortedBookings[i] = sortedBookings[j];
+                    sortedBookings[j] = temp;
+                }
+            }
+        }
+
+        for (int i = 0; i < sortedBookings.Length; i++)
+            PrintBooking(sortedBookings[i]);
+    }
+
+    private static void CancelBookingFlow(string? currentUsername, bool isAdmin)
+    {
+        Console.Write("Kode booking yang akan dibatalkan: ");
+        string code = ReadNonEmpty("Kode booking tidak boleh kosong.");
+
+        Booking? booking = null;
+        for (int i = 0; i < data.Bookings.Length; i++)
+        {
+            if (data.Bookings[i].Code.Equals(code, StringComparison.OrdinalIgnoreCase))
+            {
+                booking = data.Bookings[i];
+                break;
+            }
+        }
+        if (booking == null)
+        {
+            Console.WriteLine("Booking tidak ditemukan.");
+            return;
+        }
+
+        if (!isAdmin && !booking.Username.Equals(currentUsername, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("Customer hanya dapat membatalkan booking miliknya sendiri.");
+            return;
+        }
+
+        if (booking.Status != "Booked")
+        {
+            Console.WriteLine("Booking ini sudah dibatalkan sebelumnya.");
+            return;
+        }
+
+        PrintBooking(booking);
+        Console.Write("Yakin membatalkan booking ini? (Y/N): ");
+        if ((Console.ReadLine()?.Trim().ToUpperInvariant() ?? "N") != "Y")
+        {
+            Console.WriteLine("Pembatalan dibatalkan.");
+            return;
+        }
+
+        booking.Status = "Cancelled";
+        if (booking.PaymentStatus == "Paid")
+            booking.PaymentStatus = "Refunded (simulasi)";
+
+        // Bola yang dibeli dikembalikan ke stok cabang terkait sebagai simulasi refund pembatalan.
+        int branchIndex = GetBranchIndex(booking.Branch);
+        if (branchIndex >= 0)
+            data.BallStocks[branchIndex] += booking.BallCount;
+
+        if (booking.BallCount > 0)
+            RecordInventoryChange(booking.Branch, "BALL", booking.BallCount, "Pengembalian bola dari pembatalan " + booking.Code);
+
+        SaveData();
+        Console.WriteLine("Booking dibatalkan. Stok bola dikembalikan dan refund sudah dilakukan.");
+    }
+}
