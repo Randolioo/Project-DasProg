@@ -1,0 +1,138 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    private static bool CustomerMenu(string username)
+        {
+            bool logout = false;
+            while (!logout)
+            {
+                Console.WriteLine("============== MENU CUSTOMER ==============");
+                Console.WriteLine("1. Pilih cabang dan lihat jumlah court");
+                Console.WriteLine("2. Lihat lapangan dan jadwal tersedia");
+                Console.WriteLine("3. Booking lapangan");
+                Console.WriteLine("4. Cari booking (kode booking / A.N.)");
+                Console.WriteLine("5. Lihat jadwal booking");
+                Console.WriteLine("6. Lihat status member");
+                Console.WriteLine("7. Batalkan booking milik sendiri");
+                Console.WriteLine("8. Logout / keluar");
+                int choice = ReadInt("Pilih menu: ", 1, 8);
+                Console.WriteLine();
+    
+                switch (choice)
+                {
+                    case 1:
+                        ChooseBranchAndShowCourts();
+                        break;
+                    case 2:
+                        ShowScheduleFlow();
+                        break;
+                    case 3:
+                        CreateBooking(username);
+                        break;
+                    case 4:
+                        SearchBookingFlow();
+                        break;
+                    case 5:
+                        ShowScheduleFlow();
+                        break;
+                    case 6:
+                        Console.WriteLine(IsMember(username)
+                            ? "Status akun: MEMBER (diskon 10%)."
+                            : "Status akun: CUSTOMER biasa.");
+                        break;
+                    case 7:
+                        CancelBookingFlow(username, false);
+                        break;
+                    case 8:
+                        logout = true;
+                        break;
+                }
+                Console.WriteLine();
+            }
+    
+            SaveData();
+            return AskContinueProgram();
+        }
+
+    private static bool AdminMenu()
+        {
+            bool logout = false;
+            while (!logout)
+            {
+                Console.WriteLine("=============== MENU ADMIN ================");
+                Console.WriteLine("1. Pilih cabang dan lihat jumlah court");
+                Console.WriteLine("2. Lihat lapangan dan jadwal");
+                Console.WriteLine("3. Booking lapangan untuk customer");
+                Console.WriteLine("4. Cari booking (kode booking / A.N.)");
+                Console.WriteLine("5. Member management");
+                Console.WriteLine("6. Laporan pendapatan harian");
+                Console.WriteLine("7. Lihat semua jadwal booking");
+                Console.WriteLine("8. Kelola stok perlengkapan");
+                Console.WriteLine("9. Batalkan booking");
+                Console.WriteLine("10. Simpan data");
+                Console.WriteLine("11. Logout / keluar");
+                int choice = ReadInt("Pilih menu: ", 1, 11);
+                Console.WriteLine();
+    
+                switch (choice)
+                {
+                    case 1:
+                        ChooseBranchAndShowCourts();
+                        break;
+                    case 2:
+                        ShowScheduleFlow();
+                        break;
+                    case 3:
+                        Console.Write("Username customer yang booking: ");
+                        string customerUsername = ReadNonEmpty("Username tidak boleh kosong.");
+                        CreateBooking(customerUsername);
+                        break;
+                    case 4:
+                        SearchBookingFlow();
+                        break;
+                    case 5:
+                        MemberManagement();
+                        break;
+                    case 6:
+                        DailyRevenueReport();
+                        break;
+                    case 7:
+                        ShowAllBookings();
+                        break;
+                    case 8:
+                        ManageStock();
+                        break;
+                    case 9:
+                        CancelBookingFlow(null, true);
+                        break;
+                    case 10:
+                        SaveData();
+                        Console.WriteLine("Data berhasil disimpan.");
+                        break;
+                    case 11:
+                        logout = true;
+                        break;
+                }
+                Console.WriteLine();
+            }
+    
+            SaveData();
+            return AskContinueProgram();
+        }
+
+    private static bool AskContinueProgram()
+        {
+            Console.Write("Kembali ke login? (Y/N): ");
+            string answer = Console.ReadLine()?.Trim().ToUpperInvariant() ?? "N";
+            if (answer == "Y")
+                return true;
+    
+            SaveData();
+            return false;
+        }
+
+}
