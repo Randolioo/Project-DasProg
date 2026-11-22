@@ -1,0 +1,42 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    // =========================
+        // MODEL DATA UNTUK FILE
+        // =========================
+        public class AppData
+        {
+            public Booking[] Bookings { get; set; } = Array.Empty<Booking>();
+            public string[] Members { get; set; } = Array.Empty<string>();
+            public int[] RacketStocks { get; set; } = Array.Empty<int>();
+            public int[] BallStocks { get; set; } = Array.Empty<int>();
+        }
+    
+        public class Booking
+        {
+            public string Code { get; set; } = "";
+            public string Username { get; set; } = "";
+            public string CustomerName { get; set; } = "";
+            public string Branch { get; set; } = "";
+            public int CourtNumber { get; set; }
+            public string Date { get; set; } = "";
+            public int StartHour { get; set; }
+            public int DurationHours { get; set; } = 1;
+            public int RacketCount { get; set; }
+            public int BallCount { get; set; }
+            public decimal CourtPrice { get; set; }
+            public decimal RacketCost { get; set; }
+            public decimal BallCost { get; set; }
+            public decimal Subtotal { get; set; }
+            public decimal Discount { get; set; }
+            public decimal Total { get; set; }
+            public string PaymentMethod { get; set; } = "";
+            public string PaymentStatus { get; set; } = "";
+            public string Status { get; set; } = "Booked";
+            public string CreatedAt { get; set; } = "";
+        }
+}
