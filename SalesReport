@@ -1,0 +1,43 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    private static void DailyRevenueReport()
+        {
+            DateTime date = ReadDate("Tanggal laporan (yyyy-MM-dd): ");
+            string dateText = date.ToString("yyyy-MM-dd");
+    
+            int paidBookingCount = 0;
+            decimal revenue = 0m;
+    
+            for (int i = 0; i < data.Bookings.Length; i++)
+            {
+                Booking booking = data.Bookings[i];
+                if (booking.Date == dateText && booking.Status == "Booked" && booking.PaymentStatus == "Paid")
+                {
+                    paidBookingCount++;
+                    revenue += booking.Total;
+                }
+            }
+    
+            Console.WriteLine("\nLAPORAN PENDAPATAN HARIAN");
+            Console.WriteLine("Tanggal: " + dateText);
+            Console.WriteLine("Jumlah booking aktif yang sudah dibayar: " + paidBookingCount);
+            Console.WriteLine("Total pendapatan: Rp" + revenue.ToString("N0"));
+    
+            if (paidBookingCount > 0)
+            {
+                Console.WriteLine("\nRincian:");
+                for (int i = 0; i < data.Bookings.Length; i++)
+                {
+                    Booking booking = data.Bookings[i];
+                    if (booking.Date == dateText && booking.Status == "Booked" && booking.PaymentStatus == "Paid")
+                        Console.WriteLine($"{booking.Code} | {booking.Branch} Court {booking.CourtNumber} | {booking.PaymentMethod} | Rp{booking.Total:N0}");
+                }
+            }
+        }
+
+}
