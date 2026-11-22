@@ -1,0 +1,105 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+
+partial class Program
+{
+    private static void AddMember(string username)
+        {
+            string[] newMembers = new string[data.Members.Length + 1];
+            for (int i = 0; i < data.Members.Length; i++)
+                newMembers[i] = data.Members[i];
+    
+            newMembers[newMembers.Length - 1] = username;
+            data.Members = newMembers;
+        }
+
+    private static void RemoveMemberAt(int index)
+        {
+            string[] newMembers = new string[data.Members.Length - 1];
+            int newIndex = 0;
+    
+            for (int i = 0; i < data.Members.Length; i++)
+            {
+                if (i != index)
+                {
+                    newMembers[newIndex] = data.Members[i];
+                    newIndex++;
+                }
+            }
+    
+            data.Members = newMembers;
+        }
+
+    private static void MemberManagement()
+        {
+            Console.WriteLine("============== MEMBER MANAGEMENT ==============");
+            Console.WriteLine("1. Jadikan customer member");
+            Console.WriteLine("2. Hapus status member");
+            Console.WriteLine("3. Lihat daftar member");
+            int choice = ReadInt("Pilih menu: ", 1, 3);
+    
+            if (choice == 1)
+            {
+                Console.Write("Username customer: ");
+                string username = ReadNonEmpty("Username tidak boleh kosong.");
+                if (!IsMember(username))
+                {
+                    AddMember(username);
+                    SaveData();
+                    Console.WriteLine(username + " anda telah menjadi member, anda mendapat diskon harga sebesar 10%.");
+                }
+                else
+                {
+                    Console.WriteLine("Akun tersebut sudah menjadi member.");
+                }
+            }
+            else if (choice == 2)
+            {
+                Console.Write("Username member yang akan dihapus: ");
+                string username = ReadNonEmpty("Username tidak boleh kosong.");
+                int foundIndex = -1;
+                for (int i = 0; i < data.Members.Length; i++)
+                {
+                    if (data.Members[i].Equals(username, StringComparison.OrdinalIgnoreCase))
+                    {
+                        foundIndex = i;
+                        break;
+                    }
+                }
+    
+                if (foundIndex == -1)
+                    Console.WriteLine("Member tidak ditemukan.");
+                else
+                {
+                    string found = data.Members[foundIndex];
+                    RemoveMemberAt(foundIndex);
+                    SaveData();
+                    Console.WriteLine("Status member " + found + " telah dihapus.");
+                }
+            }
+            else
+            {
+                if (data.Members.Length == 0)
+                    Console.WriteLine("Belum ada member.");
+                else
+                {
+                    Console.WriteLine("Daftar member:");
+                    for (int i = 0; i < data.Members.Length; i++)
+                        Console.WriteLine("- " + data.Members[i]);
+                }
+            }
+        }
+
+    private static bool IsMember(string username)
+        {
+            for (int i = 0; i < data.Members.Length; i++)
+            {
+                if (data.Members[i].Equals(username, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+}
